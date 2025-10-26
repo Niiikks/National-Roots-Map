@@ -1,401 +1,561 @@
-import React, { useState, useEffect } from 'react';
-import { Menu, X, MapPin, BookOpen, Users, ChevronRight, Globe, Heart } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { MapPin, Search, Filter, X, Calendar, Heart, Share2, ZoomIn, ZoomOut } from 'lucide-react';
 
-/**
- * @typedef {Object} Feature
- * @property {React.ReactElement} icon
- * @property {string} title
- * @property {string} description
- * @property {string} color
- */
+const InteractiveMap = () => {
+  const mapRef = useRef(null);
+  const mapInstanceRef = useRef(null);
+  const markersRef = useRef([]);
+  const initAttemptRef = useRef(0);
+  
+  const [selectedStory, setSelectedStory] = useState(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [mapReady, setMapReady] = useState(false);
+  const [activeFilters, setActiveFilters] = useState({
+    generation: 'all',
+    country: 'all',
+    category: 'all'
+  });
 
-/**
- * @typedef {Object} Testimonial
- * @property {string} name
- * @property {string} location
- * @property {string} text
- * @property {string} avatar
- */
-
-/**
- * @typedef {Object} Stats
- * @property {number} users
- * @property {number} stories
- * @property {number} countries
- */
-
-/**
- * @typedef {Object} HowItWorksStep
- * @property {string} step
- * @property {React.ReactElement} icon
- * @property {string} title
- * @property {string} desc
- */
-
-const LandingPage = () => {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
-  const [stats, setStats] = useState({ users: 0, stories: 0, countries: 0 });
-
-  // Scroll event listener
-  useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 50);
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  // Animated stats counter
-  useEffect(() => {
-    /**
-     * @returns {() => void} Cleanup function
-     */
-    const animateStats = () => {
-      const duration = 2000;
-      const steps = 60;
-      const interval = duration / steps;
-      
-      const targets = { users: 1247, stories: 3891, countries: 23 };
-      const current = { users: 0, stories: 0, countries: 0 };
-      
-      const increment = {
-        users: targets.users / steps,
-        stories: targets.stories / steps,
-        countries: targets.countries / steps
-      };
-
-      let step = 0;
-      const timer = setInterval(() => {
-        if (step < steps) {
-          current.users += increment.users;
-          current.stories += increment.stories;
-          current.countries += increment.countries;
-          setStats({
-            users: Math.floor(current.users),
-            stories: Math.floor(current.stories),
-            countries: Math.floor(current.countries)
-          });
-          step++;
-        } else {
-          clearInterval(timer);
-          setStats(targets);
-        }
-      }, interval);
-
-      return () => clearInterval(timer);
-    };
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          animateStats();
-          observer.disconnect();
-        }
-      },
-      { threshold: 0.5 }
-    );
-
-    const statsElement = document.getElementById('stats-section');
-    if (statsElement) observer.observe(statsElement);
-
-    return () => observer.disconnect();
-  }, []);
-
-  /** @type {Feature[]} */
-  const features = [
+  const mockStories = [
     {
-      icon: <MapPin className="w-8 h-8" />,
-      title: "ფესვების რუკა",
-      description: "შექმენი შენი ოჯახის ინტერაქტიული რუკა და დაუკავშირდი საქართველოს ყველა კუთხეს",
-      color: "from-red-500 to-red-700"
+      id: 1,
+      title: "ჩემი ბებიის სახლი სვანეთში",
+      description: "აქ გავიზარდე და ვისწავლე ქართული ტრადიციები. ყოველ ზაფხულს ვბრუნდებოდი ამ სახლში.",
+      image: "https://images.unsplash.com/photo-1589308078059-be1415eab4c3?w=400&h=300&fit=crop",
+      author: "ნინო გელაშვილი",
+      location: "მესტია, სვანეთი",
+      lat: 43.0442,
+      lng: 42.7289,
+      country: "საქართველო",
+      generation: "1990s",
+      category: "ოჯახი",
+      date: "1985-2000",
+      likes: 124
     },
     {
-      icon: <BookOpen className="w-8 h-8" />,
-      title: "კულტურული ბიბლიოთეკა",
-      description: "ისწავლე ქართული ენა, ისტორია და ტრადიციები ინტერაქტიული მასალების საშუალებით",
-      color: "from-amber-500 to-amber-700"
+      id: 2,
+      title: "დიასპორის ცხოვრება ლონდონში",
+      description: "30 წელია ვცხოვრობ ლონდონში, მაგრამ ჩემი გული თბილისშია. ყოველდღე ვამზადებ ქართულ კერძებს.",
+      image: "https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=400&h=300&fit=crop",
+      author: "გიორგი მამულაშვილი",
+      location: "ლონდონი",
+      lat: 51.5074,
+      lng: -0.1278,
+      country: "დიდი ბრიტანეთი",
+      generation: "1980s",
+      category: "დიასპორა",
+      date: "1993-დღემდე",
+      likes: 89
     },
     {
-      icon: <Users className="w-8 h-8" />,
-      title: "საზოგადოება",
-      description: "დაუკავშირდი დიასპორაში მცხოვრებ ქართველებს და გაუზიარე შენი ისტორია",
-      color: "from-teal-500 to-teal-700"
+      id: 3,
+      title: "ბათუმის ძველი ქალაქი",
+      description: "ჩემი ბაბუა აქ ჰქონდა პატარა დუქანი. მახსოვს ზღვის სუნი და ციტრუსის ხეები.",
+      image: "https://images.unsplash.com/photo-1590050225473-60b89f82d5ab?w=400&h=300&fit=crop",
+      author: "ანა ხუციშვილი",
+      location: "ბათუმი, აჭარა",
+      lat: 41.6168,
+      lng: 41.6367,
+      country: "საქართველო",
+      generation: "2000s",
+      category: "ისტორია",
+      date: "1960-1990",
+      likes: 156
+    },
+    {
+      id: 4,
+      title: "მცხეთა - ჩემი სულიერი სახლი",
+      description: "სვეტიცხოველი ყოველთვის იყო ჩემი ოჯახის საკურთხეველი. აქ დავბრუნდი ემიგრაციის შემდეგ.",
+      image: "https://images.unsplash.com/photo-1590229991827-63872fa23f24?w=400&h=300&fit=crop",
+      author: "დავით ყიფიანი",
+      location: "მცხეთა",
+      lat: 41.8431,
+      lng: 44.7209,
+      country: "საქართველო",
+      generation: "1970s",
+      category: "რელიგია",
+      date: "1950-2024",
+      likes: 203
+    },
+    {
+      id: 5,
+      title: "ქართული ენის შენარჩუნება დუბლინში",
+      description: "ჩემს შვილებს ვასწავლი ქართულს. ყოველ კვირას ვკითხულობთ ქართულ ზღაპრებს.",
+      image: "https://images.unsplash.com/photo-1549918864-48ac978761a4?w=400&h=300&fit=crop",
+      author: "ეკა მეგრელიშვილი",
+      location: "დუბლინი",
+      lat: 53.3498,
+      lng: -6.2603,
+      country: "ირლანდია",
+      generation: "2010s",
+      category: "ენა",
+      date: "2015-დღემდე",
+      likes: 92
+    },
+    {
+      id: 6,
+      title: "ქუთაისის ბაზარი",
+      description: "ყველაზე დილით ბაბუასთან ვდიოდი ბაზარში. აქ ვსწავლობდი ქართულ ენას და ტრადიციებს.",
+      image: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=400&h=300&fit=crop",
+      author: "ლაშა კვარაცხელია",
+      location: "ქუთაისი, იმერეთი",
+      lat: 42.2679,
+      lng: 42.6988,
+      country: "საქართველო",
+      generation: "2000s",
+      category: "ტრადიციები",
+      date: "2005-2020",
+      likes: 78
     }
   ];
 
-  /** @type {Testimonial[]} */
-  const testimonials = [
-    {
-      name: "ანა ჯავახიშვილი",
-      location: "ლონდონი, დიდი ბრიტანეთი",
-      text: "ეს პლატფორმა დამეხმარა ჩემს შვილებს გაეცნობიერებინათ საიდან მოდიან. ახლა ისინი ამაყად საუბრობენ საქართველოზე.",
-      avatar: "🇬🇪"
-    },
-    {
-      name: "გიორგი მამულაშვილი",
-      location: "დუბლინი, ირლანდია",
-      text: "აღმოვაჩინე ჩემი ბაბუის სოფელი რუკაზე და ვნახე სხვა ადამიანების ისტორიები იმავე ადგილიდან. გასაოცარია!",
-      avatar: "🏔️"
-    }
-  ];
-
-  /** @type {HowItWorksStep[]} */
-  const howItWorksSteps = [
-    { step: "1", icon: <Users />, title: "რეგისტრაცია", desc: "შექმენი პროფილი და დაიწყე შენი კულტურული მოგზაურობა" },
-    { step: "2", icon: <MapPin />, title: "რუკის შექმნა", desc: "დაამატე ლოკაციები, ფოტოები და ოჯახის ისტორიები" },
-    { step: "3", icon: <Heart />, title: "დაკავშირება", desc: "გაუზიარე სხვებს და იპოვე შენი კულტურული საზოგადოება" }
-  ];
-
-  /**
-   * @param {string} href
-   */
-  const handleNavClick = (href) => {
-    setIsMenuOpen(false);
+  const filterOptions = {
+    generation: [
+      { value: 'all', label: 'ყველა თაობა' },
+      { value: '1970s', label: '1970-იანი' },
+      { value: '1980s', label: '1980-იანი' },
+      { value: '1990s', label: '1990-იანი' },
+      { value: '2000s', label: '2000-იანი' },
+      { value: '2010s', label: '2010-იანი' }
+    ],
+    country: [
+      { value: 'all', label: 'ყველა ქვეყანა' },
+      { value: 'საქართველო', label: '🇬🇪 საქართველო' },
+      { value: 'დიდი ბრიტანეთი', label: '🇬🇧 დიდი ბრიტანეთი' },
+      { value: 'ირლანდია', label: '🇮🇪 ირლანდია' }
+    ],
+    category: [
+      { value: 'all', label: 'ყველა კატეგორია' },
+      { value: 'ოჯახი', label: '👨‍👩‍👧‍👦 ოჯახი' },
+      { value: 'დიასპორა', label: '🌍 დიასპორა' },
+      { value: 'ისტორია', label: '📚 ისტორია' },
+      { value: 'რელიგია', label: '⛪ რელიგია' },
+      { value: 'ენა', label: '🗣️ ენა' },
+      { value: 'ტრადიციები', label: '🎭 ტრადიციები' }
+    ]
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      {/* Header */}
-      <header className={`fixed w-full z-50 transition-all duration-300 ${scrolled ? 'bg-white/95 backdrop-blur-md shadow-lg' : 'bg-transparent'}`}>
-        <nav className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-red-600 to-red-800 rounded-lg flex items-center justify-center text-white font-bold text-xl">
-                ე
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-slate-800">ეროვნული ფესვების რუკა</h1>
-                <p className="text-xs text-slate-600">Georgian Roots Map</p>
-              </div>
-            </div>
+  const filteredStories = mockStories.filter(story => {
+    const matchesGeneration = activeFilters.generation === 'all' || story.generation === activeFilters.generation;
+    const matchesCountry = activeFilters.country === 'all' || story.country === activeFilters.country;
+    const matchesCategory = activeFilters.category === 'all' || story.category === activeFilters.category;
+    const matchesSearch = searchQuery === '' || 
+      story.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      story.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      story.location.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    return matchesGeneration && matchesCountry && matchesCategory && matchesSearch;
+  });
 
-            {/* Desktop Menu */}
-            <div className="hidden md:flex items-center space-x-8">
-              <a href="#features" className="text-slate-700 hover:text-red-700 transition">ფუნქციები</a>
-              <a href="#about" className="text-slate-700 hover:text-red-700 transition">შესახებ</a>
-              <a href="#library" className="text-slate-700 hover:text-red-700 transition">ბიბლიოთეკა</a>
-              <button className="px-6 py-2 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-lg hover:shadow-lg transition-all duration-300 transform hover:-translate-y-0.5">
-                შესვლა
-              </button>
-            </div>
+  // Initialize map with retry logic
+  useEffect(() => {
+    const initMap = () => {
+      if (!mapRef.current || mapInstanceRef.current) return;
+      
+      const L = window.L;
+      if (!L) {
+        if (initAttemptRef.current < 20) {
+          initAttemptRef.current++;
+          setTimeout(initMap, 500);
+        }
+        return;
+      }
 
-            {/* Mobile Menu Button */}
-            <button 
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="md:hidden text-slate-800"
-              aria-label="Toggle menu"
-            >
-              {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </button>
-          </div>
+      try {
+        const map = L.map(mapRef.current, {
+          zoomControl: false,
+          scrollWheelZoom: true,
+          dragging: true,
+          touchZoom: true
+        }).setView([42.3154, 43.3569], 6);
 
-          {/* Mobile Menu */}
-          {isMenuOpen && (
-            <div className="md:hidden mt-4 pb-4 space-y-4 animate-fadeIn">
-              <a href="#features" onClick={() => handleNavClick('#features')} className="block text-slate-700 hover:text-red-700 transition">ფუნქციები</a>
-              <a href="#about" onClick={() => handleNavClick('#about')} className="block text-slate-700 hover:text-red-700 transition">შესახებ</a>
-              <a href="#library" onClick={() => handleNavClick('#library')} className="block text-slate-700 hover:text-red-700 transition">ბიბლიოთეკა</a>
-              <button className="w-full px-6 py-2 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-lg">
-                შესვლა
-              </button>
-            </div>
-          )}
-        </nav>
-      </header>
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; OpenStreetMap',
+          maxZoom: 19
+        }).addTo(map);
 
-      {/* Hero Section */}
-      <section className="relative pt-32 pb-20 px-6 overflow-hidden">
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2UyZThmMCIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-40"></div>
-        
-        <div className="container mx-auto relative z-10">
-          <div className="max-w-4xl mx-auto text-center">
-            <div className="inline-block mb-6 px-4 py-2 bg-red-100 text-red-800 rounded-full text-sm font-semibold animate-bounce">
-              🎉 ახალი: კულტურული ბიბლიოთეკა ხელმისაწვდომია!
-            </div>
-            
-            <h1 className="text-5xl md:text-7xl font-bold text-slate-900 mb-6 leading-tight">
-              დაუკავშირდი შენს
-              <span className="bg-gradient-to-r from-red-600 to-red-800 bg-clip-text text-transparent"> ფესვებს</span>
-            </h1>
-            
-            <p className="text-xl md:text-2xl text-slate-600 mb-8 leading-relaxed">
-              შექმენი შენი კულტურული რუკა, გაუზიარე ოჯახის ისტორია და დაუკავშირდი ქართულ იდენტობას მსოფლიოს ნებისმიერ კუთხიდან
-            </p>
+        mapInstanceRef.current = map;
+        setMapReady(true);
 
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
-              <button className="group px-8 py-4 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-xl font-semibold text-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 flex items-center space-x-2">
-                <span>დაიწყე მოგზაურობა</span>
-                <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-              </button>
-              <button className="px-8 py-4 bg-white text-slate-800 rounded-xl font-semibold text-lg hover:shadow-xl transition-all duration-300 border-2 border-slate-200 flex items-center space-x-2">
-                <Globe className="w-5 h-5" />
-                <span>რუკის ნახვა</span>
-              </button>
-            </div>
+        setTimeout(() => {
+          map.invalidateSize();
+        }, 200);
+      } catch (error) {
+        console.error('Map init error:', error);
+      }
+    };
 
-            {/* Stats */}
-            <div id="stats-section" className="grid grid-cols-3 gap-6 md:gap-12 max-w-3xl mx-auto">
-              <div className="text-center">
-                <div className="text-4xl md:text-5xl font-bold text-red-700 mb-2">{stats.users.toLocaleString()}</div>
-                <div className="text-sm md:text-base text-slate-600">მონაწილე</div>
-              </div>
-              <div className="text-center">
-                <div className="text-4xl md:text-5xl font-bold text-amber-600 mb-2">{stats.stories.toLocaleString()}</div>
-                <div className="text-sm md:text-base text-slate-600">ისტორია</div>
-              </div>
-              <div className="text-center">
-                <div className="text-4xl md:text-5xl font-bold text-teal-600 mb-2">{stats.countries}</div>
-                <div className="text-sm md:text-base text-slate-600">ქვეყანა</div>
-              </div>
-            </div>
-          </div>
+    const timer = setTimeout(initMap, 100);
+
+    return () => {
+      clearTimeout(timer);
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+    };
+  }, []);
+
+  // Update markers
+  useEffect(() => {
+    if (!mapInstanceRef.current || !mapReady) return;
+
+    const L = window.L;
+    if (!L) return;
+
+    const map = mapInstanceRef.current;
+
+    markersRef.current.forEach(marker => {
+      try {
+        marker.remove();
+      } catch (e) {
+        console.log('Marker removal error');
+      }
+    });
+    markersRef.current = [];
+
+    const customIcon = (color) => L.divIcon({
+      className: 'custom-marker',
+      html: `
+        <div style="
+          background: linear-gradient(135deg, ${color}, ${color}dd);
+          width: 40px;
+          height: 40px;
+          border-radius: 50% 50% 50% 0;
+          border: 3px solid white;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+          transform: rotate(-45deg);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        ">
+          <div style="transform: rotate(45deg); font-size: 18px;">📍</div>
         </div>
-      </section>
+      `,
+      iconSize: [40, 40],
+      iconAnchor: [20, 40],
+      popupAnchor: [0, -40]
+    });
 
-      {/* Features Section */}
-      <section id="features" className="py-20 px-6 bg-white">
-        <div className="container mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold text-slate-900 mb-4">რას გთავაზობთ</h2>
-            <p className="text-xl text-slate-600 max-w-2xl mx-auto">
-              პლატფორმა, რომელიც აერთიანებს დიასპორას და ინარჩუნებს ქართულ იდენტობას
-            </p>
-          </div>
+    filteredStories.forEach(story => {
+      try {
+        const color = story.country === 'საქართველო' ? '#8B0000' : '#DAA520';
+        const marker = L.marker([story.lat, story.lng], {
+          icon: customIcon(color)
+        })
+          .addTo(map)
+          .on('click', () => {
+            setSelectedStory(story);
+            map.flyTo([story.lat, story.lng], 10, {
+              duration: 1.5
+            });
+          });
 
-          <div className="grid md:grid-cols-3 gap-8">
-            {features.map((feature, index) => (
-              <div 
-                key={index}
-                className="group bg-gradient-to-br from-white to-slate-50 rounded-2xl p-8 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 border border-slate-200"
-              >
-                <div className={`w-16 h-16 bg-gradient-to-br ${feature.color} rounded-xl flex items-center justify-center text-white mb-6 group-hover:scale-110 transition-transform duration-300`}>
-                  {feature.icon}
+        markersRef.current.push(marker);
+      } catch (e) {
+        console.log('Marker creation error:', e);
+      }
+    });
+
+    if (filteredStories.length > 0) {
+      try {
+        const bounds = L.latLngBounds(filteredStories.map(s => [s.lat, s.lng]));
+        map.fitBounds(bounds, { padding: [50, 50], maxZoom: 12 });
+      } catch (e) {
+        console.log('Bounds error');
+      }
+    }
+  }, [filteredStories, mapReady]);
+
+  const handleFilterChange = (filterType, value) => {
+    setActiveFilters(prev => ({
+      ...prev,
+      [filterType]: value
+    }));
+  };
+
+  const resetFilters = () => {
+    setActiveFilters({
+      generation: 'all',
+      country: 'all',
+      category: 'all'
+    });
+    setSearchQuery('');
+  };
+
+  const zoomIn = () => {
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.zoomIn();
+    }
+  };
+
+  const zoomOut = () => {
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.zoomOut();
+    }
+  };
+
+  const activeFilterCount = Object.values(activeFilters).filter(v => v !== 'all').length;
+
+  return (
+    <>
+      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossOrigin="" />
+      <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossOrigin=""></script>
+
+      <div className="h-screen flex flex-col bg-slate-50">
+        <header className="bg-white shadow-md z-20 relative">
+          <div className="px-6 py-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-red-600 to-red-800 rounded-lg flex items-center justify-center text-white font-bold text-xl">
+                  ე
                 </div>
-                <h3 className="text-2xl font-bold text-slate-900 mb-4">{feature.title}</h3>
-                <p className="text-slate-600 leading-relaxed mb-6">{feature.description}</p>
-                <button className="text-red-700 font-semibold flex items-center space-x-2 group-hover:space-x-3 transition-all">
-                  <span>გაიგე მეტი</span>
-                  <ChevronRight className="w-4 h-4" />
+                <div>
+                  <h1 className="text-xl font-bold text-slate-800">ფესვების რუკა</h1>
+                  <p className="text-xs text-slate-600">{filteredStories.length} ისტორია</p>
+                </div>
+              </div>
+              <button className="px-4 py-2 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-lg hover:shadow-lg transition-all text-sm font-semibold">
+                + დაამატე შენი ისტორია
+              </button>
+            </div>
+
+            <div className="flex gap-3">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
+                <input
+                  type="text"
+                  placeholder="ძიება ლოკაციის, სათაურის ან აღწერის მიხედვით..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 border-2 border-slate-200 rounded-lg focus:border-red-500 focus:outline-none transition-colors"
+                />
+              </div>
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className={`px-6 py-3 rounded-lg font-semibold transition-all flex items-center space-x-2 ${
+                  showFilters ? 'bg-red-600 text-white' : 'bg-white border-2 border-slate-200 text-slate-700 hover:border-red-500'
+                }`}
+              >
+                <Filter className="w-5 h-5" />
+                <span>ფილტრები</span>
+                {activeFilterCount > 0 && (
+                  <span className="bg-white text-red-600 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {showFilters && (
+              <div className="mt-4 p-4 bg-slate-50 rounded-lg border-2 border-slate-200">
+                <div className="grid md:grid-cols-3 gap-4 mb-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">თაობა</label>
+                    <select
+                      value={activeFilters.generation}
+                      onChange={(e) => handleFilterChange('generation', e.target.value)}
+                      className="w-full p-2 border-2 border-slate-200 rounded-lg focus:border-red-500 focus:outline-none"
+                    >
+                      {filterOptions.generation.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">ქვეყანა</label>
+                    <select
+                      value={activeFilters.country}
+                      onChange={(e) => handleFilterChange('country', e.target.value)}
+                      className="w-full p-2 border-2 border-slate-200 rounded-lg focus:border-red-500 focus:outline-none"
+                    >
+                      {filterOptions.country.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">კატეგორია</label>
+                    <select
+                      value={activeFilters.category}
+                      onChange={(e) => handleFilterChange('category', e.target.value)}
+                      className="w-full p-2 border-2 border-slate-200 rounded-lg focus:border-red-500 focus:outline-none"
+                    >
+                      {filterOptions.category.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <button
+                  onClick={resetFilters}
+                  className="text-red-600 font-semibold text-sm hover:text-red-700 transition-colors"
+                >
+                  ფილტრების გასუფთავება
                 </button>
               </div>
-            ))}
+            )}
           </div>
-        </div>
-      </section>
+        </header>
 
-      {/* How It Works */}
-      <section className="py-20 px-6 bg-gradient-to-br from-slate-50 to-white">
-        <div className="container mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold text-slate-900 mb-4">როგორ მუშაობს</h2>
-            <p className="text-xl text-slate-600">მარტივი 3 ნაბიჯი</p>
-          </div>
+        <div className="flex-1 relative">
+          {!mapReady && (
+            <div className="absolute inset-0 flex items-center justify-center bg-slate-100 z-20">
+              <div className="text-center">
+                <div className="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                <p className="text-slate-700 font-semibold">რუკა იტვირთება...</p>
+                <p className="text-slate-500 text-sm mt-2">თუ რუკა არ ჩანს, განაახლეთ გვერდი</p>
+              </div>
+            </div>
+          )}
 
-          <div className="max-w-5xl mx-auto">
-            <div className="relative">
-              <div className="absolute left-1/2 top-0 bottom-0 w-1 bg-gradient-to-b from-red-600 via-amber-600 to-teal-600 hidden md:block"></div>
-              
-              {howItWorksSteps.map((item, index) => (
-                <div key={index} className={`flex items-center mb-12 ${index % 2 === 0 ? 'md:flex-row' : 'md:flex-row-reverse'}`}>
-                  <div className={`flex-1 ${index % 2 === 0 ? 'md:text-right md:pr-12' : 'md:text-left md:pl-12'}`}>
-                    <h3 className="text-2xl font-bold text-slate-900 mb-2">{item.title}</h3>
-                    <p className="text-slate-600">{item.desc}</p>
-                  </div>
-                  <div className="relative">
-                    <div className="w-20 h-20 bg-gradient-to-br from-red-600 to-red-800 rounded-full flex items-center justify-center text-white font-bold text-2xl shadow-xl z-10 relative">
-                      {item.step}
+          <div ref={mapRef} className="w-full h-full bg-slate-200" />
+
+          {mapReady && (
+            <>
+              <div className="absolute right-6 top-6 bg-white rounded-lg shadow-lg overflow-hidden z-10">
+                <button
+                  onClick={zoomIn}
+                  className="block p-3 hover:bg-slate-50 transition-colors border-b border-slate-200"
+                  aria-label="Zoom in"
+                >
+                  <ZoomIn className="w-5 h-5 text-slate-700" />
+                </button>
+                <button
+                  onClick={zoomOut}
+                  className="block p-3 hover:bg-slate-50 transition-colors"
+                  aria-label="Zoom out"
+                >
+                  <ZoomOut className="w-5 h-5 text-slate-700" />
+                </button>
+              </div>
+
+              {selectedStory && (
+                <div className="absolute bottom-6 left-6 right-6 md:left-auto md:w-96 bg-white rounded-2xl shadow-2xl overflow-hidden z-10 animate-slideUp">
+                  <button
+                    onClick={() => setSelectedStory(null)}
+                    className="absolute top-4 right-4 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-lg hover:bg-slate-100 transition-colors z-10"
+                    aria-label="Close"
+                  >
+                    <X className="w-5 h-5 text-slate-700" />
+                  </button>
+
+                  <img
+                    src={selectedStory.image}
+                    alt={selectedStory.title}
+                    className="w-full h-48 object-cover"
+                  />
+
+                  <div className="p-6">
+                    <h3 className="text-2xl font-bold text-slate-900 mb-3 pr-8">{selectedStory.title}</h3>
+
+                    <div className="flex items-center space-x-4 mb-4 text-sm text-slate-600">
+                      <div className="flex items-center space-x-1">
+                        <MapPin className="w-4 h-4" />
+                        <span>{selectedStory.location}</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <Calendar className="w-4 h-4" />
+                        <span>{selectedStory.date}</span>
+                      </div>
+                    </div>
+
+                    <p className="text-slate-700 mb-4 leading-relaxed">{selectedStory.description}</p>
+
+                    <div className="flex items-center justify-between pt-4 border-t border-slate-200">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-10 h-10 bg-gradient-to-br from-red-600 to-red-800 rounded-full flex items-center justify-center text-white font-bold">
+                          {selectedStory.author.charAt(0)}
+                        </div>
+                        <div>
+                          <div className="font-semibold text-sm text-slate-900">{selectedStory.author}</div>
+                          <div className="text-xs text-slate-600">{selectedStory.country}</div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center space-x-3">
+                        <button className="flex items-center space-x-1 text-red-600 hover:text-red-700 transition-colors">
+                          <Heart className="w-5 h-5" />
+                          <span className="text-sm font-semibold">{selectedStory.likes}</span>
+                        </button>
+                        <button className="text-slate-600 hover:text-slate-700 transition-colors">
+                          <Share2 className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-semibold">
+                        {selectedStory.category}
+                      </span>
+                      <span className="px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-semibold">
+                        {selectedStory.generation}
+                      </span>
                     </div>
                   </div>
-                  <div className="flex-1"></div>
                 </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
+              )}
 
-      {/* Testimonials */}
-      <section className="py-20 px-6 bg-white">
-        <div className="container mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold text-slate-900 mb-4">რას ამბობენ მომხმარებლები</h2>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
-            {testimonials.map((testimonial, index) => (
-              <div key={index} className="bg-gradient-to-br from-slate-50 to-white rounded-2xl p-8 shadow-lg border border-slate-200">
-                <div className="text-6xl mb-4">{testimonial.avatar}</div>
-                <p className="text-slate-700 text-lg mb-6 italic">"{testimonial.text}"</p>
-                <div>
-                  <div className="font-bold text-slate-900">{testimonial.name}</div>
-                  <div className="text-slate-600 text-sm">{testimonial.location}</div>
+              {filteredStories.length === 0 && (
+                <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+                  <div className="bg-white rounded-2xl shadow-xl p-8 text-center max-w-md pointer-events-auto">
+                    <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Search className="w-8 h-8 text-slate-400" />
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-900 mb-2">ისტორიები ვერ მოიძებნა</h3>
+                    <p className="text-slate-600 mb-4">შეცვალეთ საძიებო კრიტერიუმები ან ფილტრები</p>
+                    <button
+                      onClick={resetFilters}
+                      className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-semibold"
+                    >
+                      ფილტრების გასუფთავება
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              )}
+            </>
+          )}
         </div>
-      </section>
 
-      {/* CTA Section */}
-      <section className="py-20 px-6 bg-gradient-to-r from-red-600 to-red-800 text-white">
-        <div className="container mx-auto text-center">
-          <h2 className="text-4xl md:text-5xl font-bold mb-6">მზად ხარ დაიწყო?</h2>
-          <p className="text-xl mb-8 opacity-90">შეუერთდი ათასობით ქართველს მსოფლიოს ყველა კუთხიდან</p>
-          <button className="px-10 py-4 bg-white text-red-700 rounded-xl font-bold text-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1">
-            გახსენი შენი ფესვების რუკა
-          </button>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="bg-slate-900 text-white py-12 px-6">
-        <div className="container mx-auto">
-          <div className="grid md:grid-cols-4 gap-8 mb-8">
-            <div>
-              <h3 className="font-bold text-lg mb-4">ეროვნული ფესვების რუკა</h3>
-              <p className="text-slate-400 text-sm">ქართული იდენტობის შენარჩუნება დიასპორაში</p>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-4">ნავიგაცია</h4>
-              <ul className="space-y-2 text-slate-400 text-sm">
-                <li><a href="#" className="hover:text-white transition">მთავარი</a></li>
-                <li><a href="#" className="hover:text-white transition">რუკა</a></li>
-                <li><a href="#" className="hover:text-white transition">ბიბლიოთეკა</a></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-4">საზოგადოება</h4>
-              <ul className="space-y-2 text-slate-400 text-sm">
-                <li><a href="#" className="hover:text-white transition">ჩვენს შესახებ</a></li>
-                <li><a href="#" className="hover:text-white transition">კონტაქტი</a></li>
-                <li><a href="#" className="hover:text-white transition">დახმარება</a></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-4">მიგვყევი</h4>
-              <div className="flex space-x-4">
-                <a href="#" className="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center hover:bg-red-700 transition" aria-label="Facebook">FB</a>
-                <a href="#" className="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center hover:bg-red-700 transition" aria-label="Instagram">IG</a>
-                <a href="#" className="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center hover:bg-red-700 transition" aria-label="YouTube">YT</a>
-              </div>
-            </div>
-          </div>
-          <div className="border-t border-slate-800 pt-8 text-center text-slate-400 text-sm">
-            <p>&copy; 2024 ეროვნული ფესვების რუკა. ყველა უფლება დაცულია.</p>
-          </div>
-        </div>
-      </footer>
-
-      <style>{`
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(-10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .animate-fadeIn {
-          animation: fadeIn 0.3s ease-out;
-        }
-      `}</style>
-    </div>
+        <style>{`
+          @keyframes slideUp {
+            from {
+              opacity: 0;
+              transform: translateY(20px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+          .animate-slideUp {
+            animation: slideUp 0.3s ease-out;
+          }
+          .leaflet-container {
+            font-family: inherit;
+            height: 100%;
+            width: 100%;
+            background: #e2e8f0;
+          }
+          .custom-marker {
+            background: transparent !important;
+            border: none !important;
+          }
+          .leaflet-popup-content-wrapper {
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+          }
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+          .animate-spin {
+            animation: spin 1s linear infinite;
+          }
+        `}</style>
+      </div>
+    </>
   );
 };
 
-export default LandingPage;
+export default InteractiveMap;
